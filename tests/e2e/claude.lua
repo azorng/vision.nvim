@@ -150,7 +150,7 @@ function M.run()
         "claude did not honor the temp UserPromptSubmit hook:\n" .. h.trimmed_tail(preflight_output)
       )
 
-      h.assert_command_ok(h.run_command({ vim.fs.joinpath(h.root, "scripts", "visionctl"), "install", "claude" }, {
+      h.assert_command_ok(h.run_command({ vim.fs.joinpath(h.root, "bin", "visionctl"), "install", "claude" }, {
         env = {
           HOME = installer_home,
           CLAUDE_CONFIG_DIR = claude_config_dir,

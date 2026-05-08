@@ -12,6 +12,11 @@ local init_path = vim.fs.normalize(vim.fn.fnamemodify(source, ":p"))
 local plugin_root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(init_path)))
 
 local current_config = config.apply()
+local providers = { "claude", "codex", "opencode" }
+local provider_set = {}
+for _, provider in ipairs(providers) do
+  provider_set[provider] = true
+end
 
 local function notify(message, level)
   vim.notify(message, level or vim.log.levels.INFO, {
@@ -30,11 +35,11 @@ end
 
 local function install_provider(provider)
   provider = vim.trim(provider or "")
-  if provider ~= "codex" and provider ~= "claude" then
+  if not provider_set[provider] then
     return nil, "unknown provider: " .. provider
   end
 
-  local visionctl = vim.fs.joinpath(plugin_root, "scripts", "visionctl")
+  local visionctl = vim.fs.joinpath(plugin_root, "bin", "visionctl")
   if vim.fn.executable(visionctl) ~= 1 then
     return nil, "visionctl is not executable: " .. visionctl
   end
@@ -71,7 +76,6 @@ local function register_commands()
   end, {
     nargs = 1,
     complete = function(arg_lead)
-      local providers = { "claude", "codex" }
       local matches = {}
       for _, provider in ipairs(providers) do
         if provider:sub(1, #arg_lead) == arg_lead then
@@ -80,7 +84,7 @@ local function register_commands()
       end
       return matches
     end,
-    desc = "Install a vision.nvim provider hook",
+    desc = "Install a vision.nvim provider integration",
   })
 end
 

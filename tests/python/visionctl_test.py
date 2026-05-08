@@ -1,7 +1,6 @@
-import importlib.machinery
-import importlib.util
 import json
 import os
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timezone
@@ -9,13 +8,10 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = ROOT / "scripts" / "visionctl"
+SCRIPT = ROOT / "bin" / "visionctl"
 
-
-loader = importlib.machinery.SourceFileLoader("visionctl", str(SCRIPT))
-spec = importlib.util.spec_from_loader("visionctl", loader)
-visionctl = importlib.util.module_from_spec(spec)
-loader.exec_module(visionctl)
+sys.path.insert(0, str(ROOT))
+import visionctl
 
 
 class Env:
@@ -77,7 +73,30 @@ class VisionctlTest(unittest.TestCase):
             }
 
             rendered = visionctl.render_context(envelope, str(root))
+            expected = "\n".join([
+                "<additional-data>",
+                "  Below is context that may help with the user query. Ignore if not relevant",
+                "",
+                "  <current-file>",
+                "    Path: lua/main.lua",
+                "  </current-file>",
+                "",
+                "  <attached-files>",
+                "    <visual-selection>",
+                "      ```lua lua/main.lua (lines 2-3)",
+                "      local value = 1",
+                "      print(value)",
+                "      ```",
+                "    </visual-selection>",
+                "",
+                "    <linter-errors>",
+                "      [ERROR] Line 1, Column 2: broken",
+                "    </linter-errors>",
+                "  </attached-files>",
+                "</additional-data>",
+            ])
 
+            self.assertEqual(rendered, expected)
             self.assertIn("Path: lua/main.lua", rendered)
             self.assertIn("```lua lua/main.lua (lines 2-3)", rendered)
             self.assertIn("local value = 1", rendered)
@@ -100,6 +119,24 @@ class VisionctlTest(unittest.TestCase):
             self.assertIn("suppress_unstable_features_warning = true", config)
             self.assertIn("[features]", config)
             self.assertIn("hooks = true", config)
+
+    def test_opencode_install_writes_managed_plugin(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config_dir = Path(tmp) / "opencode-config"
+            with Env(OPENCODE_CONFIG_DIR=str(config_dir), XDG_CONFIG_HOME=None):
+                visionctl.PROVIDERS["opencode"].install()
+                visionctl.PROVIDERS["opencode"].install()
+
+            plugin = config_dir / "plugins" / "vision-nvim.js"
+            source = plugin.read_text(encoding="utf-8")
+
+            self.assertIn("Managed by vision.nvim", source)
+            self.assertIn(str(SCRIPT), source)
+            self.assertIn('"chat.message"', source)
+            self.assertIn('"hook", "opencode"', source)
+
+    def test_opencode_wrap_returns_plugin_payload(self):
+        self.assertEqual(visionctl.PROVIDERS["opencode"].wrap("ctx"), {"context": "ctx"})
 
     def test_select_session_prefers_longest_matching_root(self):
         with tempfile.TemporaryDirectory() as tmp:

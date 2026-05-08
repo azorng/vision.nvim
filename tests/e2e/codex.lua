@@ -153,7 +153,7 @@ function M.run()
         "codex exec did not honor the temp UserPromptSubmit hook:\n" .. h.trimmed_tail(preflight_output)
       )
 
-      h.assert_command_ok(h.run_command({ vim.fs.joinpath(h.root, "scripts", "visionctl"), "install", "codex" }, {
+      h.assert_command_ok(h.run_command({ vim.fs.joinpath(h.root, "bin", "visionctl"), "install", "codex" }, {
         env = {
           HOME = home,
           CODEX_HOME = codex_home,
@@ -176,7 +176,7 @@ function M.run()
       h.eq(envelope.envelope.attachment.text, token)
       h.falsy(h.read_file(file_path):find(token, 1, true) ~= nil, "token leaked to disk before codex e2e")
 
-      local direct_hook = h.run_command({ vim.fs.joinpath(h.root, "scripts", "visionctl"), "hook", "codex" }, {
+      local direct_hook = h.run_command({ vim.fs.joinpath(h.root, "bin", "visionctl"), "hook", "codex" }, {
         cwd = nested_cwd,
         env = {
           VISION_NVIM_DATA_HOME = data_home,
