@@ -5,9 +5,9 @@ use neovim visual mode as a bridge between editor context and your agent.
 ---
 
 This plugin provides a bridge between neovim and your agent, creating a small
-local service inside neovim. When you submit a prompt, the agent's
-`UserPromptSubmit` hook asks that session for the active visual selection. If
-one exists, Vision injects the context as additional prompt context.
+local service inside neovim. When you submit a prompt, the agent integration
+asks that session for the active visual selection. If one exists, Vision injects
+the context as additional prompt context.
 
 ## Install
 
@@ -22,18 +22,28 @@ one exists, Vision injects the context as additional prompt context.
 
 ## Usage
 
-Install a provider hook from inside Neovim:
+Install a provider integration from inside Neovim:
 
 ```vim
 :VisionInstall codex
 :VisionInstall claude
+:VisionInstall opencode
 ```
 
-Keep a visual selection active when submitting your prompt. The hook will attach
-the context automatically.
+External provider e2e tests use real CLIs and may be billable:
 
-After installing a hook, restart any already-running agent session so the agent
-reloads its hook config.
+```sh
+./scripts/test e2e
+./scripts/test e2e codex
+./scripts/test e2e claude
+./scripts/test e2e opencode
+```
+
+Keep a visual selection active when submitting your prompt. The integration will
+attach the context automatically.
+
+After installing an integration, restart any already-running agent session so
+the agent reloads its config.
 
 ## Configuration
 
@@ -56,4 +66,5 @@ require("vision").setup({
 ```vim
 :VisionInstall codex
 :VisionInstall claude
+:VisionInstall opencode
 ```

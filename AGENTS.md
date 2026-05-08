@@ -8,7 +8,7 @@ next supported agent prompt.
 Keep the architecture small:
 
 - Lua owns editor capture and the live local session.
-- `scripts/visionctl` owns hook execution, provider adapters, rendering, and
+- `visionctl` owns hook execution, provider adapters, rendering, and
   install-time config edits.
 - Providers stay thin and must not know about Neovim capture details.
 
@@ -26,4 +26,5 @@ External e2e tests are explicit:
 ./scripts/test e2e
 ./scripts/test e2e codex
 ./scripts/test e2e claude
+./scripts/test e2e opencode
 ```
