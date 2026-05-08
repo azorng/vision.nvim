@@ -1,0 +1,36 @@
+#!/bin/sh
+
+set -eu
+
+SCRIPT_DIR=$(
+  CDPATH= cd -- "$(dirname -- "$0")" && pwd
+)
+ROOT_DIR=$(
+  CDPATH= cd -- "$SCRIPT_DIR/.." && pwd
+)
+NVIM_BIN=${NVIM_BIN:-nvim}
+
+case "${1:-}" in
+  "")
+    python3 -m unittest discover -s "$ROOT_DIR/tests/python" -p "*_test.py"
+    "$NVIM_BIN" --headless -u NONE -l "$ROOT_DIR/tests/lua/run.lua"
+    ;;
+  e2e)
+    provider=${2:-all}
+    if [ "${3:-}" != "" ]; then
+      printf '%s\n' "usage: ./scripts/test e2e [codex|claude]" >&2
+      exit 2
+    fi
+    if [ "$provider" != "all" ] && [ "$provider" != "codex" ] && [ "$provider" != "claude" ]; then
+      printf '%s\n' "usage: ./scripts/test e2e [codex|claude]" >&2
+      exit 2
+    fi
+
+    printf '%s\n' "Running external e2e tests. These use real provider CLIs and may be billable." >&2
+    VISION_NVIM_E2E_PROVIDER=$provider "$NVIM_BIN" --headless -u NONE -l "$ROOT_DIR/tests/e2e/run.lua"
+    ;;
+  *)
+    printf '%s\n' "usage: ./scripts/test [e2e [codex|claude]]" >&2
+    exit 2
+    ;;
+esac
