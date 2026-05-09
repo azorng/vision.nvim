@@ -12,7 +12,7 @@ local init_path = vim.fs.normalize(vim.fn.fnamemodify(source, ":p"))
 local plugin_root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(init_path)))
 
 local current_config = config.apply()
-local providers = { "claude", "codex", "opencode" }
+local providers = { "claude", "codex", "opencode", "pi" }
 local provider_set = {}
 for _, provider in ipairs(providers) do
   provider_set[provider] = true

@@ -18,11 +18,11 @@ case "${1:-}" in
   e2e)
     provider=${2:-all}
     if [ "${3:-}" != "" ]; then
-      printf '%s\n' "usage: ./scripts/test e2e [codex|claude|opencode]" >&2
+      printf '%s\n' "usage: ./scripts/test e2e [codex|claude|opencode|pi]" >&2
       exit 2
     fi
-    if [ "$provider" != "all" ] && [ "$provider" != "codex" ] && [ "$provider" != "claude" ] && [ "$provider" != "opencode" ]; then
-      printf '%s\n' "usage: ./scripts/test e2e [codex|claude|opencode]" >&2
+    if [ "$provider" != "all" ] && [ "$provider" != "codex" ] && [ "$provider" != "claude" ] && [ "$provider" != "opencode" ] && [ "$provider" != "pi" ]; then
+      printf '%s\n' "usage: ./scripts/test e2e [codex|claude|opencode|pi]" >&2
       exit 2
     fi
 
@@ -30,7 +30,7 @@ case "${1:-}" in
     VISION_NVIM_E2E_PROVIDER=$provider "$NVIM_BIN" --headless -u NONE -l "$ROOT_DIR/tests/e2e/run.lua"
     ;;
   *)
-    printf '%s\n' "usage: ./scripts/test [e2e [codex|claude|opencode]]" >&2
+    printf '%s\n' "usage: ./scripts/test [e2e [codex|claude|opencode|pi]]" >&2
     exit 2
     ;;
 esac

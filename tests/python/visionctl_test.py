@@ -213,6 +213,26 @@ class VisionctlTest(unittest.TestCase):
     def test_opencode_wrap_returns_plugin_payload(self):
         self.assertEqual(visionctl.PROVIDERS["opencode"].wrap("ctx"), {"context": "ctx"})
 
+    def test_pi_install_writes_managed_extension(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent_dir = Path(tmp) / "pi-agent"
+            with Env(PI_CODING_AGENT_DIR=str(agent_dir)):
+                visionctl.PROVIDERS["pi"].install()
+                visionctl.PROVIDERS["pi"].install()
+
+            extension = agent_dir / "extensions" / "vision-nvim.ts"
+            source = extension.read_text(encoding="utf-8")
+
+            self.assertIn("Managed by vision.nvim", source)
+            self.assertIn(str(SCRIPT), source)
+            self.assertIn('"before_agent_start"', source)
+            self.assertIn('"hook", "pi"', source)
+            self.assertIn('customType: "vision.nvim"', source)
+            self.assertIn("display: false", source)
+
+    def test_pi_wrap_returns_extension_payload(self):
+        self.assertEqual(visionctl.PROVIDERS["pi"].wrap("ctx"), {"context": "ctx"})
+
     def test_select_session_prefers_longest_matching_root(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

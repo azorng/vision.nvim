@@ -27,4 +27,5 @@ External e2e tests are explicit:
 ./scripts/test e2e codex
 ./scripts/test e2e claude
 ./scripts/test e2e opencode
+./scripts/test e2e pi
 ```
