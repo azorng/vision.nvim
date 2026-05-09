@@ -156,6 +156,7 @@ test("capture returns a visual selection attachment", function()
   eq(envelope.attachment.type, "visual_selection")
   eq(envelope.attachment.mode, "line")
   eq(envelope.attachment.text, "alpha\nbeta")
+  eq(envelope.attachment.selected, true)
   eq(envelope.attachment.range, {
     start_line = 0,
     start_col = 0,
@@ -163,6 +164,54 @@ test("capture returns a visual selection attachment", function()
     end_col = 4,
   })
   eq(envelope.context.current_file, expected_path)
+end)
+
+test("capture returns Visual mode context without extending the range", function()
+  package.loaded["vision.config"] = nil
+  package.loaded["vision.capture"] = nil
+
+  local util = require("vision.util")
+  local config = require("vision.config").apply({
+    selection = {
+      clear_after_send = false,
+    },
+    context = {
+      cursor = true,
+    },
+  })
+  local capture = require("vision.capture")
+  local dir = tempdir()
+  vim.api.nvim_set_current_dir(dir)
+
+  local path = vim.fs.joinpath(dir, "empty-line.lua")
+  write_file(path, {
+    "",
+    "beta",
+  })
+  edit(path)
+  local expected_path = util.buffer_path(vim.api.nvim_get_current_buf())
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
+  vim.cmd("normal! v")
+
+  local envelope = capture.consume(config)
+  exit_visual()
+
+  eq(envelope.schema, 1)
+  eq(envelope.attachment.type, "visual_selection")
+  eq(envelope.attachment.mode, "char")
+  eq(envelope.attachment.text, "")
+  eq(envelope.attachment.selected, false)
+  eq(envelope.attachment.range, {
+    start_line = 0,
+    start_col = 0,
+    end_line = 0,
+    end_col = 0,
+  })
+  eq(envelope.context.current_file, expected_path)
+  eq(envelope.context.cursor, {
+    line = 0,
+    col = 0,
+  })
 end)
 
 test("session service consumes an attachment over rpc", function()
