@@ -8,6 +8,18 @@ from ..common import read_text, write_text
 from .command_hooks import CommandHookProvider, merge_hook_entry
 
 
+TABLE_HEADER_RE = re.compile(r"^\s*\[.+\]\s*(?:#.*)?$")
+FEATURES_HEADER_RE = re.compile(r"""^\s*\[\s*(?:features|"features"|'features')\s*\]\s*(?:#.*)?$""")
+
+
+def is_table_header(line):
+    return TABLE_HEADER_RE.match(line) is not None
+
+
+def is_features_header(line):
+    return FEATURES_HEADER_RE.match(line) is not None
+
+
 def codex_trust_state(hooks_path, entry):
     command = entry["hooks"][0]["command"]
     identity = {
@@ -29,21 +41,20 @@ def codex_trust_state(hooks_path, entry):
 def ensure_codex_config(path, hooks_path, entry):
     text = read_text(path).replace("\r\n", "\n")
     warning_line = "suppress_unstable_features_warning = true"
-    warning_re = re.compile(r"(?m)^suppress_unstable_features_warning\s*=\s*(true|false)\s*$")
+    warning_re = re.compile(r"(?m)^suppress_unstable_features_warning\s*=\s*(true|false)(?:\s*#.*)?$")
     if warning_re.search(text):
         text = warning_re.sub(warning_line, text, count=1)
     else:
         text = warning_line + ("\n\n" + text if text else "\n")
 
     source_lines = text.splitlines()
-    features_at = next((i for i, line in enumerate(source_lines) if line.strip() == "[features]"), None)
+    features_at = next((i for i, line in enumerate(source_lines) if is_features_header(line)), None)
     if features_at is None:
         source_lines.extend(["", "[features]", "hooks = true"])
     else:
         end = features_at + 1
         while end < len(source_lines):
-            stripped = source_lines[end].strip()
-            if stripped.startswith("[") and stripped.endswith("]"):
+            if is_table_header(source_lines[end]):
                 break
             end += 1
 
@@ -70,7 +81,7 @@ def ensure_codex_config(path, hooks_path, entry):
             skip_state_block = True
             continue
         if skip_state_block:
-            if stripped.startswith("[") and stripped.endswith("]"):
+            if is_table_header(stripped):
                 skip_state_block = False
             else:
                 continue
@@ -84,7 +95,7 @@ def ensure_codex_config(path, hooks_path, entry):
                 lines.append("")
             previous_blank = True
             continue
-        if stripped.startswith("[") and stripped.endswith("]") and lines and lines[-1] != "":
+        if is_table_header(stripped) and lines and lines[-1] != "":
             lines.append("")
         lines.append(line.rstrip())
         previous_blank = False
