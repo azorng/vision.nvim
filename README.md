@@ -1,6 +1,10 @@
+<p align="center">
+<img width="170" alt="Screenshot 2026-05-09 at 9 17 43 Small" src="https://github.com/user-attachments/assets/09847aa7-21ab-4a1b-af15-7c3595537f43" />
+</p>
 <h1 align="center">vision.nvim</h1>
-
-> share your neovim context with agents through visual mode
+<p align="center">
+share your neovim context with agents through visual mode
+</p>
 
 <div align="center">
 
@@ -66,7 +70,7 @@ After installing an integration, restart any already-running agent session so th
 Enter Visual mode in Neovim when submitting your prompt. The integration will
 attach the context automatically.
 
-If not in Visual mode, nothing will be sent to the agents.
+If not in Visual mode, no context will be attached.
 
 ## Configuration
 
