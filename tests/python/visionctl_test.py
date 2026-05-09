@@ -107,6 +107,45 @@ class VisionctlTest(unittest.TestCase):
             self.assertIn("local value = 1", rendered)
             self.assertIn("[ERROR] Line 1, Column 2: broken", rendered)
 
+    def test_render_context_omits_unselected_visual_range(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            file_path = root / "main.py"
+            envelope = {
+                "schema": 1,
+                "workspace": {
+                    "cwd": str(root),
+                    "roots": [str(root)],
+                },
+                "attachment": {
+                    "type": "visual_selection",
+                    "file": str(file_path),
+                    "mode": "char",
+                    "selected": False,
+                    "range": {
+                        "start_line": 0,
+                        "start_col": 0,
+                        "end_line": 0,
+                        "end_col": 0,
+                    },
+                    "text": "",
+                },
+                "context": {
+                    "current_file": str(file_path),
+                    "cursor": {
+                        "line": 0,
+                        "col": 0,
+                    },
+                },
+            }
+
+            rendered = visionctl.render_context(envelope, str(root))
+
+            self.assertIn("<current-file>", rendered)
+            self.assertIn("<cursor-data>", rendered)
+            self.assertNotIn("<visual-selection>", rendered)
+            self.assertNotIn("<attached-files>", rendered)
+
     def test_codex_install_is_idempotent_and_enables_hooks(self):
         with tempfile.TemporaryDirectory() as tmp:
             codex_home = Path(tmp) / ".codex"

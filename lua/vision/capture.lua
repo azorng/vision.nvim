@@ -47,7 +47,20 @@ local function current_selection(mode_info, bufnr)
   end
 
   if mode_info.mode ~= "line" and same_position(start_pos, end_pos) then
-    return nil
+    local line = math.max(start_pos[2] - 1, 0)
+    local col = start_col(start_pos, bufnr)
+    return {
+      mode = mode_info.mode,
+      range = {
+        start_line = line,
+        start_col = col,
+        end_line = line,
+        end_col = col,
+      },
+      text = "",
+      selected = false,
+      truncated = false,
+    }
   end
 
   local region_opts = { type = mode_info.region_type }
@@ -62,10 +75,6 @@ local function current_selection(mode_info, bufnr)
   end
 
   local text = table.concat(text_lines, "\n")
-  if text == "" then
-    return nil
-  end
-
   local truncated
   text, truncated = util.truncate_utf8(text, MAX_SELECTION_BYTES)
 
@@ -80,6 +89,7 @@ local function current_selection(mode_info, bufnr)
       end_col = end_col(last, bufnr),
     },
     text = text,
+    selected = true,
     truncated = truncated,
   }
 end
@@ -155,6 +165,7 @@ function M.consume(config)
       mode = selection.mode,
       range = selection.range,
       text = selection.text,
+      selected = selection.selected,
       truncated = selection.truncated,
     },
     context = {

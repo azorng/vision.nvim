@@ -190,6 +190,7 @@ def render_once(envelope, root, selection_limit=None, include_diagnostics=True):
     current_display = display_path(current_file, root) if current_file else display_path(file_path, root)
     selection_display = display_path(file_path, root) or file_path
     range_value = attachment.get("range") if isinstance(attachment.get("range"), dict) else {}
+    has_selection = attachment.get("selected") is not False
     diagnostics = diagnostic_lines(context.get("diagnostics"), root, current_display) if include_diagnostics else []
 
     doc = StructuredText()
@@ -207,10 +208,12 @@ def render_once(envelope, root, selection_limit=None, include_diagnostics=True):
         if current_line:
             render_current_line(doc, current_line)
 
-        doc.blank()
-        with doc.block("attached-files"):
-            render_visual_selection(doc, selection_display, range_value, selected_text)
-            render_diagnostics(doc, diagnostics)
+        if has_selection or diagnostics:
+            doc.blank()
+            with doc.block("attached-files"):
+                if has_selection:
+                    render_visual_selection(doc, selection_display, range_value, selected_text)
+                render_diagnostics(doc, diagnostics)
 
     return doc.render()
 
