@@ -40,6 +40,8 @@ User prompt
 
 ## Install
 
+### with lazy.nvim
+
 ```lua
 {
   "azorng/vision.nvim",
@@ -47,6 +49,16 @@ User prompt
     require("vision").setup({})
   end,
 }
+```
+
+### with vim.pack (Neovim 0.12+)
+
+```lua
+vim.pack.add({
+  "https://github.com/azorng/vision.nvim",
+})
+
+require("vision").setup({})
 ```
 
 Then install a provider integration from inside Neovim:
