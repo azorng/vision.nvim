@@ -6,6 +6,11 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    import tomllib
+except ModuleNotFoundError:
+    tomllib = None
+
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "bin" / "visionctl"
@@ -120,6 +125,35 @@ class VisionctlTest(unittest.TestCase):
             self.assertIn("[features]", config)
             self.assertIn("hooks = true", config)
 
+    def test_codex_install_updates_commented_features_header(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            codex_home = Path(tmp) / ".codex"
+            codex_home.mkdir()
+            (codex_home / "config.toml").write_text(
+                "\n".join([
+                    "suppress_unstable_features_warning = false # old",
+                    "",
+                    "[features] # user comment",
+                    "foo = true",
+                    "",
+                    "[projects.\"/tmp/repo\"] # user comment",
+                    'trust_level = "trusted"',
+                    "",
+                ]),
+                encoding="utf-8",
+            )
+
+            with Env(CODEX_HOME=str(codex_home)):
+                visionctl.PROVIDERS["codex"].install()
+
+            config = (codex_home / "config.toml").read_text(encoding="utf-8")
+            self.assertEqual(config.count("suppress_unstable_features_warning"), 1)
+            self.assertEqual(config.count("[features]"), 1)
+            self.assertIn("[features] # user comment", config)
+            self.assertIn("hooks = true", config)
+            if tomllib:
+                tomllib.loads(config)
+
     def test_opencode_install_writes_managed_plugin(self):
         with tempfile.TemporaryDirectory() as tmp:
             config_dir = Path(tmp) / "opencode-config"
@@ -134,6 +168,8 @@ class VisionctlTest(unittest.TestCase):
             self.assertIn(str(SCRIPT), source)
             self.assertIn('"chat.message"', source)
             self.assertIn('"hook", "opencode"', source)
+            self.assertIn("Array.isArray(output?.parts)", source)
+            self.assertIn("try {", source)
 
     def test_opencode_wrap_returns_plugin_payload(self):
         self.assertEqual(visionctl.PROVIDERS["opencode"].wrap("ctx"), {"context": "ctx"})

@@ -79,10 +79,10 @@ function extractContext(stdout) {{
 function visionContext(directory, input, output) {{
   const cwd = typeof directory === "string" && directory ? directory : process.cwd()
   const payload = {{
-    prompt: promptText(output.parts),
+    prompt: promptText(output?.parts),
     cwd,
-    sessionID: input.sessionID,
-    messageID: output.message?.id,
+    sessionID: input?.sessionID,
+    messageID: output?.message?.id,
   }}
   const result = spawnSync(VISIONCTL, ["hook", "opencode"], {{
     cwd,
@@ -96,17 +96,21 @@ function visionContext(directory, input, output) {{
 
 export const VisionNvim = async ({{ directory }}) => ({{
   "chat.message": async (input, output) => {{
-    const context = visionContext(directory, input, output)
-    if (!context) return
-    output.parts.push({{
-      id: partID(),
-      sessionID: input.sessionID,
-      messageID: output.message.id,
-      type: "text",
-      text: context,
-      synthetic: true,
-      metadata: {{ source: "vision.nvim" }},
-    }})
+    try {{
+      if (!Array.isArray(output?.parts) || !input?.sessionID || !output?.message?.id) return
+      const context = visionContext(directory, input, output)
+      if (!context) return
+      output.parts.push({{
+        id: partID(),
+        sessionID: input.sessionID,
+        messageID: output.message.id,
+        type: "text",
+        text: context,
+        synthetic: true,
+        metadata: {{ source: "vision.nvim" }},
+      }})
+    }} catch {{
+    }}
   }},
 }})
 
