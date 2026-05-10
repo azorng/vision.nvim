@@ -25,6 +25,9 @@ end
 if provider == "all" or provider == "opencode" then
   suites[#suites + 1] = require("tests.e2e.opencode")
 end
+if provider == "all" or provider == "pi" then
+  suites[#suites + 1] = require("tests.e2e.pi")
+end
 
 local failures = 0
 for _, suite in ipairs(suites) do

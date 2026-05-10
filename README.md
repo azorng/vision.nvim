@@ -32,7 +32,7 @@ User prompt
 
 ### Concepts
 
-- **User prompt:** The message you submit to Codex, Claude, or OpenCode.
+- **User prompt:** The message you submit to Codex, Claude, OpenCode.
 - **Agent integration:** The provider-specific hook/plugin installed by `:VisionInstall <provider>`. It runs when you submit a prompt.
 - **vision.nvim session:** A registered live endpoint for a Neovim instance. It includes a local socket/TCP listener plus a JSON discovery record on disk.
 - **visionctl:** The short-lived command-line bridge. It finds the matching vision.nvim session, asks that Neovim process for Visual-mode context, renders the result, and returns it to the agent.
@@ -67,6 +67,7 @@ Then install a provider integration from inside Neovim:
 :VisionInstall codex
 :VisionInstall claude
 :VisionInstall opencode
+:VisionInstall pi
 ```
 
 `vision.nvim` installs provider integrations by editing the corresponding agent config:
@@ -74,6 +75,7 @@ Then install a provider integration from inside Neovim:
 - **Codex:** adds a prompt hook in `~/.codex/hooks.json`.
 - **Claude:** adds a prompt hook in `~/.claude/settings.json`.
 - **OpenCode:** writes a managed plugin to `$OPENCODE_CONFIG_DIR/plugins/vision-nvim.js`, or `~/.config/opencode/plugins/vision-nvim.js` by default.
+- **Pi:** writes a managed extension to `$PI_CODING_AGENT_DIR/extensions/vision-nvim.ts`, or `~/.pi/agent/extensions/vision-nvim.ts` by default.
 
 After installing an integration, restart any already-running agent session so the agent reloads its config.
 

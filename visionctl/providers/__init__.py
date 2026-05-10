@@ -1,12 +1,14 @@
 from .claude import ClaudeProvider
 from .codex import CodexProvider
 from .opencode import OpenCodeProvider
+from .pi import PiProvider
 
 
 PROVIDERS = {
     "codex": CodexProvider(),
     "claude": ClaudeProvider(),
     "opencode": OpenCodeProvider(),
+    "pi": PiProvider(),
 }
 
 
