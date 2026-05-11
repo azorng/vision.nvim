@@ -18,6 +18,7 @@ SCRIPT = ROOT / "bin" / "visionctl"
 
 sys.path.insert(0, str(ROOT))
 import visionctl
+import visionctl.session
 
 
 class Env:
@@ -151,6 +152,45 @@ class VisionctlTest(unittest.TestCase):
             self.assertIn("<cursor-data>", rendered)
             self.assertNotIn("<visual-selection>", rendered)
             self.assertNotIn("<attached-files>", rendered)
+
+    def test_attach_context_renders_paths_relative_to_agent_cwd(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            agent_cwd = Path(tmp) / "repo"
+            nvim_cwd = agent_cwd / "foo"
+            file_path = nvim_cwd / "bar" / "baz.yaml"
+            file_path.parent.mkdir(parents=True)
+            envelope = {
+                "schema": 1,
+                "workspace": {
+                    "cwd": str(nvim_cwd),
+                    "roots": [str(nvim_cwd)],
+                },
+                "attachment": {
+                    "type": "visual_selection",
+                    "file": str(file_path),
+                    "mode": "line",
+                    "range": {
+                        "start_line": 0,
+                        "start_col": 0,
+                        "end_line": 0,
+                        "end_col": 11,
+                    },
+                    "text": "name: value",
+                },
+                "context": {
+                    "current_file": str(file_path),
+                    "diagnostics": [],
+                },
+            }
+
+            with patch("visionctl.session.select_session", return_value={"cwd": str(nvim_cwd)}), patch(
+                "visionctl.session.request", return_value=envelope
+            ):
+                rendered = visionctl.session.attach_context(str(agent_cwd))
+
+            self.assertIn("Path: foo/bar/baz.yaml", rendered)
+            self.assertIn("```yaml foo/bar/baz.yaml (lines 1-1)", rendered)
+            self.assertNotIn("Path: bar/baz.yaml", rendered)
 
     def test_codex_install_is_idempotent_and_enables_hooks(self):
         with tempfile.TemporaryDirectory() as tmp:

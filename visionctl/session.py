@@ -228,10 +228,11 @@ def request(record, method, timeout_ms=DEFAULT_TIMEOUT_MS):
 
 
 def attach_context(cwd, timeout_ms=DEFAULT_TIMEOUT_MS):
-    record = select_session(cwd, timeout_ms)
+    render_root = normalize_path(cwd)
+    record = select_session(render_root, timeout_ms)
     if record is None:
         return None
     envelope = request(record, "vision.consume_attachment", timeout_ms)
     if envelope is None:
         return None
-    return render_context(envelope, record.get("cwd"))
+    return render_context(envelope, render_root)
