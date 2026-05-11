@@ -172,7 +172,7 @@ def render_once(envelope, root, selection_limit=None, include_diagnostics=True):
         raise VisionError("attachment envelope must be an object")
 
     workspace = envelope.get("workspace") if isinstance(envelope.get("workspace"), dict) else {}
-    root = as_string(workspace.get("cwd")) or root
+    root = as_string(root) or as_string(workspace.get("cwd"))
     attachment = envelope.get("attachment")
     context = envelope.get("context") if isinstance(envelope.get("context"), dict) else {}
     if not isinstance(attachment, dict) or attachment.get("type") != "visual_selection":
