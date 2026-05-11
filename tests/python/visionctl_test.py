@@ -484,6 +484,36 @@ class VisionctlTest(unittest.TestCase):
 
             self.assertEqual(selected["id"], "latest-visual-root")
 
+    def test_select_session_ignores_non_matching_session_without_visual_activity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data = tmp_path / "data"
+            sessions = data / "sessions"
+            sessions.mkdir(parents=True)
+            agent_root = tmp_path / "agent-repo"
+            other_root = tmp_path / "other-repo"
+            agent_root.mkdir()
+            other_root.mkdir()
+
+            records = [
+                {
+                    "schema": 1,
+                    "id": "newer-unrelated",
+                    "pid": os.getpid(),
+                    "cwd": str(other_root),
+                    "roots": [str(other_root)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 2},
+                    "token": "x",
+                    "started_at": "2026-05-11T12:00:00.000Z",
+                },
+            ]
+            write_session_records(sessions, records)
+
+            with Env(VISION_NVIM_DATA_HOME=str(data)):
+                selected = visionctl.select_session(str(agent_root))
+
+            self.assertIsNone(selected)
+
     def test_select_session_refreshes_live_visual_state_before_ranking(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)

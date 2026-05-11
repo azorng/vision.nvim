@@ -141,9 +141,13 @@ def select_session(cwd, timeout_ms=DEFAULT_TIMEOUT_MS):
         root = root_matches(record, normalized_cwd)
         trust_visual_state = refreshed or not has_live_state
         visual_at = epoch_ms(record.get("last_visual_at")) if trust_visual_state else -1
+        visual_active = trust_visual_state and record.get("visual_active") is True
+        has_visual_activity = visual_active or visual_at >= 0
+        if root is None and not has_visual_activity:
+            continue
 
         candidate = (
-            1 if trust_visual_state and record.get("visual_active") is True else 0,
+            1 if visual_active else 0,
             1 if visual_at >= 0 else 0,
             visual_at,
             1 if root is not None else 0,
