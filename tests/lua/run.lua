@@ -4,6 +4,7 @@ local root = vim.fs.dirname(vim.fs.dirname(vim.fs.dirname(script_path)))
 
 vim.opt.runtimepath:prepend(root)
 package.path = table.concat({
+  root .. "/?.lua",
   root .. "/lua/?.lua",
   root .. "/lua/?/init.lua",
   package.path,
@@ -244,13 +245,189 @@ test("session service consumes an attachment over rpc", function()
   local session = require("vision.session")._runtime
   truthy(session.running, "session should start during setup")
   local response = rpc_request(session.transport, session.token, "vision.consume_attachment")
-  require("vision.session").stop()
-  exit_visual()
 
   eq(response.id, 1, vim.inspect(response))
   eq(response.error, nil)
   eq(response.result.attachment.text, "one\ntwo")
   eq(response.result.attachment.file, expected_path)
+  truthy(session.last_visual_at ~= nil, "session should track Visual mode activity")
+  eq(session.visual_active, true)
+
+  local record = vim.json.decode(table.concat(vim.fn.readfile(session.record_path), "\n"))
+  eq(record.last_visual_at, session.last_visual_at)
+  eq(record.visual_active, true)
+
+  require("vision.session").clear_visual_activity()
+  local cleared = vim.json.decode(table.concat(vim.fn.readfile(session.record_path), "\n"))
+  eq(cleared.visual_active, false)
+
+  require("vision.session").stop()
+  exit_visual()
+end)
+
+test("session service reports live Visual state without consuming attachment", function()
+  package.loaded["vision"] = nil
+  package.loaded["vision.session"] = nil
+
+  local dir = tempdir()
+  local data = vim.fs.joinpath(dir, "data")
+  vim.env.VISION_NVIM_DATA_HOME = data
+  vim.api.nvim_set_current_dir(dir)
+  local expected_cwd = require("vision.util").current_cwd()
+
+  local path = vim.fs.joinpath(dir, "state.lua")
+  write_file(path, {
+    "alpha",
+    "beta",
+  })
+  edit(path)
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
+
+  local vision = require("vision")
+  vision.setup({
+    selection = {
+      clear_after_send = false,
+    },
+  })
+
+  vim.cmd("normal! V")
+  local session = require("vision.session")._runtime
+  session.last_visual_at = nil
+  session.visual_active = false
+  session.visual_key = nil
+
+  local state = rpc_request(session.transport, session.token, "vision.visual_state")
+  eq(state.id, 1, vim.inspect(state))
+  eq(state.error, nil)
+  eq(state.result.visual_active, true)
+  eq(state.result.cwd, expected_cwd)
+  eq(state.result.roots, { expected_cwd })
+  eq(session.visual_active, true)
+  truthy(session.last_visual_at ~= nil, "live Visual state should refresh session activity")
+  eq(state.result.last_visual_at, session.last_visual_at)
+
+  local consumed = rpc_request(session.transport, session.token, "vision.consume_attachment")
+  eq(consumed.result.attachment.text, "alpha")
+
+  require("vision.session").stop()
+  exit_visual()
+end)
+
+test("session record updates when Visual mode is entered after setup", function()
+  package.loaded["vision"] = nil
+  package.loaded["vision.session"] = nil
+
+  local dir = tempdir()
+  local data = vim.fs.joinpath(dir, "data")
+  vim.env.VISION_NVIM_DATA_HOME = data
+  vim.api.nvim_set_current_dir(dir)
+
+  local path = vim.fs.joinpath(dir, "activity.lua")
+  write_file(path, {
+    "one",
+    "two",
+  })
+  edit(path)
+
+  require("vision").setup({
+    selection = {
+      clear_after_send = false,
+    },
+  })
+  local session = require("vision.session")._runtime
+  truthy(session.running, "session should start during setup")
+  eq(session.last_visual_at, nil)
+  eq(session.visual_active, false)
+
+  vim.api.nvim_win_set_cursor(0, { 1, 0 })
+  vim.api.nvim_feedkeys("V", "xt", false)
+  local ok = vim.wait(2000, function()
+    return session.visual_active and session.last_visual_at ~= nil
+  end, 20)
+
+  truthy(ok, "session did not publish Visual mode activity after entering Visual mode")
+  local record = vim.json.decode(table.concat(vim.fn.readfile(session.record_path), "\n"))
+  eq(record.visual_active, true)
+  eq(record.last_visual_at, session.last_visual_at)
+
+  exit_visual()
+  vim.wait(2000, function()
+    return session.visual_active == false
+  end, 20)
+  require("vision.session").stop()
+end)
+
+test("visionctl follows the latest Visual selection across live Neovim sessions", function()
+  local h = require("tests.e2e.support")
+
+  h.with_tempdir(function(tmp)
+    local data = vim.fs.joinpath(tmp, "data")
+    local workspace_a = vim.fs.joinpath(tmp, "workspace-a")
+    local workspace_b = vim.fs.joinpath(tmp, "workspace-b")
+    local file_a = vim.fs.joinpath(workspace_a, "a.txt")
+    local file_b = vim.fs.joinpath(workspace_b, "b.txt")
+    local child_a = nil
+    local child_b = nil
+
+    local function hook()
+      local result = h.run_command({ vim.fs.joinpath(root, "bin", "visionctl"), "hook", "codex" }, {
+        cwd = workspace_a,
+        env = {
+          VISION_NVIM_DATA_HOME = data,
+        },
+        stdin = vim.json.encode({
+          prompt = "multi-session check",
+        }),
+      })
+      h.assert_command_ok(result, "direct codex hook")
+      return result.stdout or ""
+    end
+
+    local ok, err = xpcall(function()
+      h.mkdir(data)
+      h.mkdir(workspace_a)
+      h.mkdir(workspace_b)
+
+      child_a = h.start_child({
+        cwd = workspace_a,
+        workspace_root = workspace_a,
+        env = {
+          VISION_NVIM_DATA_HOME = data,
+        },
+      })
+      child_b = h.start_child({
+        cwd = workspace_b,
+        workspace_root = workspace_b,
+        env = {
+          VISION_NVIM_DATA_HOME = data,
+        },
+      })
+
+      h.seed_unsaved_visual_selection(child_a, file_a, "VISION_SESSION_A_1")
+      local first = hook()
+      truthy(first:find("VISION_SESSION_A_1", 1, true) ~= nil, first)
+
+      h.seed_unsaved_visual_selection(child_b, file_b, "VISION_SESSION_B_1")
+      local second = hook()
+      truthy(second:find("VISION_SESSION_B_1", 1, true) ~= nil, second)
+      truthy(second:find("VISION_SESSION_A_1", 1, true) == nil, second)
+
+      h.seed_unsaved_visual_selection(child_a, file_a, "VISION_SESSION_A_2")
+      local third = hook()
+      truthy(third:find("VISION_SESSION_A_2", 1, true) ~= nil, third)
+      truthy(third:find("VISION_SESSION_B_1", 1, true) == nil, third)
+    end, debug.traceback)
+
+    if child_a then
+      child_a.stop()
+    end
+    if child_b then
+      child_b.stop()
+    end
+    if not ok then
+      error(err)
+    end
+  end)
 end)
 
 local failures = 0

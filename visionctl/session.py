@@ -94,29 +94,70 @@ def load_sessions():
     return records
 
 
-def select_session(cwd):
+def refresh_session_record(record, timeout_ms):
+    try:
+        state = request(record, "vision.visual_state", timeout_ms)
+    except VisionError:
+        return dict(record), False
+
+    if not isinstance(state, dict):
+        return dict(record), False
+
+    refreshed = dict(record)
+    if isinstance(state.get("visual_active"), bool):
+        refreshed["visual_active"] = state["visual_active"]
+    if "last_visual_at" in state and (
+        state.get("last_visual_at") is None or parse_time(state.get("last_visual_at")) is not None
+    ):
+        refreshed["last_visual_at"] = state.get("last_visual_at")
+
+    cwd = normalize_path(state.get("cwd"))
+    if cwd is not None:
+        refreshed["cwd"] = cwd
+
+    roots = state.get("roots")
+    if isinstance(roots, list):
+        normalized_roots = []
+        for root in roots:
+            normalized = normalize_path(root)
+            if normalized is not None:
+                normalized_roots.append(normalized)
+        if normalized_roots:
+            refreshed["roots"] = normalized_roots
+
+    return refreshed, True
+
+
+def select_session(cwd, timeout_ms=DEFAULT_TIMEOUT_MS):
     normalized_cwd = normalize_path(cwd)
     if normalized_cwd is None:
         raise VisionError("cwd must be a non-empty path")
 
+    records = [refresh_session_record(record, timeout_ms) for record in load_sessions()]
+    has_live_state = any(refreshed for _, refreshed in records)
+
     best = None
-    for record in load_sessions():
+    for record, refreshed in records:
         root = root_matches(record, normalized_cwd)
-        if root is None:
-            continue
+        trust_visual_state = refreshed or not has_live_state
+        visual_at = epoch_ms(record.get("last_visual_at")) if trust_visual_state else -1
 
         candidate = (
-            len(root),
+            1 if trust_visual_state and record.get("visual_active") is True else 0,
+            1 if visual_at >= 0 else 0,
+            visual_at,
+            1 if root is not None else 0,
+            len(root or ""),
             epoch_ms(record.get("started_at")),
             str(record.get("id", "")),
             record,
         )
-        if best is None or candidate[:3] > best[:3]:
+        if best is None or candidate[:-1] > best[:-1]:
             best = candidate
 
     if best is None:
         return None
-    return best[3]
+    return best[-1]
 
 
 def request(record, method, timeout_ms=DEFAULT_TIMEOUT_MS):
@@ -187,7 +228,7 @@ def request(record, method, timeout_ms=DEFAULT_TIMEOUT_MS):
 
 
 def attach_context(cwd, timeout_ms=DEFAULT_TIMEOUT_MS):
-    record = select_session(cwd)
+    record = select_session(cwd, timeout_ms)
     if record is None:
         return None
     envelope = request(record, "vision.consume_attachment", timeout_ms)

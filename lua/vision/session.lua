@@ -19,6 +19,9 @@ local runtime = {
   record_path = nil,
   running = false,
   last_error = nil,
+  last_visual_at = nil,
+  visual_active = false,
+  visual_key = nil,
 }
 
 local function close_handle(handle)
@@ -87,6 +90,23 @@ local function dispatch(line)
     end
 
     local ok, result = xpcall(consume, debug.traceback)
+    if not ok then
+      return response(request.id, nil, {
+        code = "internal_error",
+        message = result,
+      })
+    end
+
+    return response(request.id, result)
+  end
+
+  if request.method == "vision.visual_state" then
+    local visual_state = runtime.callbacks and runtime.callbacks.visual_state
+    if type(visual_state) ~= "function" then
+      return response(request.id, nil)
+    end
+
+    local ok, result = xpcall(visual_state, debug.traceback)
     if not ok then
       return response(request.id, nil, {
         code = "internal_error",
@@ -277,6 +297,8 @@ local function session_record()
     transport = vim.deepcopy(runtime.transport),
     token = runtime.token,
     started_at = runtime.started_at,
+    last_visual_at = util.json_null(runtime.last_visual_at),
+    visual_active = runtime.visual_active,
   }
 end
 
@@ -315,6 +337,9 @@ function M.start(callbacks)
   runtime.transport = transport
   runtime.running = true
   runtime.last_error = nil
+  runtime.last_visual_at = nil
+  runtime.visual_active = false
+  runtime.visual_key = nil
 
   local ok, publish_err = publish()
   if not ok then
@@ -349,11 +374,38 @@ function M.stop()
   end
 
   runtime.transport = nil
+  runtime.visual_active = false
+  runtime.visual_key = nil
   return true
 end
 
 function M.is_running()
   return runtime.running
+end
+
+function M.mark_visual_activity(key)
+  if not runtime.running then
+    return nil, "session is not running"
+  end
+
+  if key ~= nil and runtime.visual_active and runtime.visual_key == key then
+    return true
+  end
+
+  runtime.last_visual_at = util.iso_utc_ms()
+  runtime.visual_active = true
+  runtime.visual_key = key
+  return publish()
+end
+
+function M.clear_visual_activity()
+  if not runtime.running or (not runtime.visual_active and runtime.visual_key == nil) then
+    return true
+  end
+
+  runtime.visual_active = false
+  runtime.visual_key = nil
+  return publish()
 end
 
 M._runtime = runtime

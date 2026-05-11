@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 try:
     import tomllib
@@ -38,6 +39,11 @@ class Env:
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
+
+
+def write_session_records(directory, records):
+    for record in records:
+        (directory / (record["id"] + ".json")).write_text(json.dumps(record), encoding="utf-8")
 
 
 class VisionctlTest(unittest.TestCase):
@@ -266,13 +272,299 @@ class VisionctlTest(unittest.TestCase):
                     "started_at": now,
                 },
             ]
-            for record in records:
-                (sessions / (record["id"] + ".json")).write_text(json.dumps(record), encoding="utf-8")
+            write_session_records(sessions, records)
 
             with Env(VISION_NVIM_DATA_HOME=str(data)):
                 selected = visionctl.select_session(str(nested))
 
             self.assertEqual(selected["id"], "nested")
+
+    def test_select_session_prefers_latest_visual_activity_for_same_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data = tmp_path / "data"
+            sessions = data / "sessions"
+            sessions.mkdir(parents=True)
+            root = tmp_path / "repo"
+            root.mkdir()
+
+            records = [
+                {
+                    "schema": 1,
+                    "id": "older-selection-newer-session",
+                    "pid": os.getpid(),
+                    "cwd": str(root),
+                    "roots": [str(root)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 1},
+                    "token": "x",
+                    "started_at": "2026-05-11T12:00:00.000Z",
+                    "last_visual_at": "2026-05-11T12:01:00.000Z",
+                },
+                {
+                    "schema": 1,
+                    "id": "latest-selection",
+                    "pid": os.getpid(),
+                    "cwd": str(root),
+                    "roots": [str(root)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 2},
+                    "token": "x",
+                    "started_at": "2026-05-11T11:00:00.000Z",
+                    "last_visual_at": "2026-05-11T12:02:00.000Z",
+                },
+            ]
+            write_session_records(sessions, records)
+
+            with Env(VISION_NVIM_DATA_HOME=str(data)):
+                selected = visionctl.select_session(str(root))
+
+            self.assertEqual(selected["id"], "latest-selection")
+
+    def test_select_session_prefers_latest_visual_activity_over_longer_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data = tmp_path / "data"
+            sessions = data / "sessions"
+            sessions.mkdir(parents=True)
+            parent = tmp_path / "repo"
+            nested = parent / "nested"
+            nested.mkdir(parents=True)
+
+            records = [
+                {
+                    "schema": 1,
+                    "id": "latest-selection",
+                    "pid": os.getpid(),
+                    "cwd": str(parent),
+                    "roots": [str(parent)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 1},
+                    "token": "x",
+                    "started_at": "2026-05-11T11:00:00.000Z",
+                    "last_visual_at": "2026-05-11T12:02:00.000Z",
+                },
+                {
+                    "schema": 1,
+                    "id": "longer-root",
+                    "pid": os.getpid(),
+                    "cwd": str(nested),
+                    "roots": [str(nested)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 2},
+                    "token": "x",
+                    "started_at": "2026-05-11T12:00:00.000Z",
+                    "last_visual_at": "2026-05-11T12:01:00.000Z",
+                },
+            ]
+            write_session_records(sessions, records)
+
+            with Env(VISION_NVIM_DATA_HOME=str(data)):
+                selected = visionctl.select_session(str(nested))
+
+            self.assertEqual(selected["id"], "latest-selection")
+
+    def test_select_session_prefers_active_visual_session(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data = tmp_path / "data"
+            sessions = data / "sessions"
+            sessions.mkdir(parents=True)
+            root = tmp_path / "repo"
+            root.mkdir()
+
+            records = [
+                {
+                    "schema": 1,
+                    "id": "inactive-latest",
+                    "pid": os.getpid(),
+                    "cwd": str(root),
+                    "roots": [str(root)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 1},
+                    "token": "x",
+                    "started_at": "2026-05-11T12:00:00.000Z",
+                    "last_visual_at": "2026-05-11T12:02:00.000Z",
+                    "visual_active": False,
+                },
+                {
+                    "schema": 1,
+                    "id": "active-selection",
+                    "pid": os.getpid(),
+                    "cwd": str(root),
+                    "roots": [str(root)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 2},
+                    "token": "x",
+                    "started_at": "2026-05-11T11:00:00.000Z",
+                    "last_visual_at": "2026-05-11T12:01:00.000Z",
+                    "visual_active": True,
+                },
+            ]
+            write_session_records(sessions, records)
+
+            with Env(VISION_NVIM_DATA_HOME=str(data)):
+                selected = visionctl.select_session(str(root))
+
+            self.assertEqual(selected["id"], "active-selection")
+
+    def test_select_session_prefers_latest_visual_activity_without_root_match(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data = tmp_path / "data"
+            sessions = data / "sessions"
+            sessions.mkdir(parents=True)
+            agent_root = tmp_path / "agent-repo"
+            visual_root = tmp_path / "visual-repo"
+            agent_root.mkdir()
+            visual_root.mkdir()
+
+            records = [
+                {
+                    "schema": 1,
+                    "id": "agent-root",
+                    "pid": os.getpid(),
+                    "cwd": str(agent_root),
+                    "roots": [str(agent_root)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 1},
+                    "token": "x",
+                    "started_at": "2026-05-11T12:00:00.000Z",
+                },
+                {
+                    "schema": 1,
+                    "id": "latest-visual-root",
+                    "pid": os.getpid(),
+                    "cwd": str(visual_root),
+                    "roots": [str(visual_root)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 2},
+                    "token": "x",
+                    "started_at": "2026-05-11T11:00:00.000Z",
+                    "last_visual_at": "2026-05-11T12:02:00.000Z",
+                    "visual_active": True,
+                },
+            ]
+            write_session_records(sessions, records)
+
+            with Env(VISION_NVIM_DATA_HOME=str(data)):
+                selected = visionctl.select_session(str(agent_root))
+
+            self.assertEqual(selected["id"], "latest-visual-root")
+
+    def test_select_session_refreshes_live_visual_state_before_ranking(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data = tmp_path / "data"
+            sessions = data / "sessions"
+            sessions.mkdir(parents=True)
+            agent_root = tmp_path / "agent-repo"
+            visual_root = tmp_path / "visual-repo"
+            agent_root.mkdir()
+            visual_root.mkdir()
+
+            records = [
+                {
+                    "schema": 1,
+                    "id": "stale-record-winner",
+                    "pid": os.getpid(),
+                    "cwd": str(agent_root),
+                    "roots": [str(agent_root)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 1},
+                    "token": "x",
+                    "started_at": "2026-05-11T12:00:00.000Z",
+                    "last_visual_at": "2026-05-11T12:05:00.000Z",
+                    "visual_active": True,
+                },
+                {
+                    "schema": 1,
+                    "id": "live-visual",
+                    "pid": os.getpid(),
+                    "cwd": str(visual_root),
+                    "roots": [str(visual_root)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 2},
+                    "token": "x",
+                    "started_at": "2026-05-11T11:00:00.000Z",
+                    "last_visual_at": "2026-05-11T12:01:00.000Z",
+                    "visual_active": False,
+                },
+            ]
+            write_session_records(sessions, records)
+
+            live_states = {
+                "stale-record-winner": {
+                    "visual_active": False,
+                    "last_visual_at": "2026-05-11T12:05:00.000Z",
+                    "cwd": str(agent_root),
+                    "roots": [str(agent_root)],
+                },
+                "live-visual": {
+                    "visual_active": True,
+                    "last_visual_at": "2026-05-11T12:06:00.000Z",
+                    "cwd": str(visual_root),
+                    "roots": [str(visual_root)],
+                },
+            }
+
+            def fake_request(record, method, timeout_ms=700):
+                self.assertEqual(method, "vision.visual_state")
+                self.assertLessEqual(timeout_ms, 700)
+                return live_states[record["id"]]
+
+            with Env(VISION_NVIM_DATA_HOME=str(data)), patch("visionctl.session.request", side_effect=fake_request):
+                selected = visionctl.select_session(str(agent_root))
+
+            self.assertEqual(selected["id"], "live-visual")
+            self.assertEqual(selected["visual_active"], True)
+            self.assertEqual(selected["cwd"], str(visual_root.resolve(strict=False)))
+
+    def test_select_session_does_not_let_stale_unrefreshable_records_win(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            data = tmp_path / "data"
+            sessions = data / "sessions"
+            sessions.mkdir(parents=True)
+            old_root = tmp_path / "old-repo"
+            live_root = tmp_path / "live-repo"
+            old_root.mkdir()
+            live_root.mkdir()
+
+            records = [
+                {
+                    "schema": 1,
+                    "id": "old-stale-active",
+                    "pid": os.getpid(),
+                    "cwd": str(old_root),
+                    "roots": [str(old_root)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 1},
+                    "token": "x",
+                    "started_at": "2026-05-11T12:00:00.000Z",
+                    "last_visual_at": "2026-05-11T12:07:00.000Z",
+                    "visual_active": True,
+                },
+                {
+                    "schema": 1,
+                    "id": "live-active",
+                    "pid": os.getpid(),
+                    "cwd": str(live_root),
+                    "roots": [str(live_root)],
+                    "transport": {"kind": "tcp", "host": "127.0.0.1", "port": 2},
+                    "token": "x",
+                    "started_at": "2026-05-11T11:00:00.000Z",
+                    "last_visual_at": "2026-05-11T12:01:00.000Z",
+                    "visual_active": False,
+                },
+            ]
+            write_session_records(sessions, records)
+
+            def fake_request(record, method, timeout_ms=700):
+                self.assertEqual(method, "vision.visual_state")
+                if record["id"] == "old-stale-active":
+                    raise visionctl.session.VisionError("unknown method: vision.visual_state")
+                return {
+                    "visual_active": True,
+                    "last_visual_at": "2026-05-11T12:06:00.000Z",
+                    "cwd": str(live_root),
+                    "roots": [str(live_root)],
+                }
+
+            with Env(VISION_NVIM_DATA_HOME=str(data)), patch("visionctl.session.request", side_effect=fake_request):
+                selected = visionctl.select_session(str(old_root))
+
+            self.assertEqual(selected["id"], "live-active")
+            self.assertEqual(selected["visual_active"], True)
 
 
 if __name__ == "__main__":
