@@ -18,11 +18,11 @@ case "${1:-}" in
   e2e)
     provider=${2:-all}
     if [ "${3:-}" != "" ]; then
-      printf '%s\n' "usage: ./scripts/test e2e [codex|claude|opencode|pi]" >&2
+      printf '%s\n' "usage: ./scripts/test e2e [codex|claude|cursor|opencode|pi]" >&2
       exit 2
     fi
-    if [ "$provider" != "all" ] && [ "$provider" != "codex" ] && [ "$provider" != "claude" ] && [ "$provider" != "opencode" ] && [ "$provider" != "pi" ]; then
-      printf '%s\n' "usage: ./scripts/test e2e [codex|claude|opencode|pi]" >&2
+    if [ "$provider" != "all" ] && [ "$provider" != "codex" ] && [ "$provider" != "claude" ] && [ "$provider" != "cursor" ] && [ "$provider" != "opencode" ] && [ "$provider" != "pi" ]; then
+      printf '%s\n' "usage: ./scripts/test e2e [codex|claude|cursor|opencode|pi]" >&2
       exit 2
     fi
 

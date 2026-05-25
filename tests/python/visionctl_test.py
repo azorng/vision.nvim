@@ -1,3 +1,4 @@
+import io
 import json
 import os
 import sys
@@ -18,6 +19,7 @@ SCRIPT = ROOT / "bin" / "visionctl"
 
 sys.path.insert(0, str(ROOT))
 import visionctl
+import visionctl.cli
 import visionctl.session
 
 
@@ -238,6 +240,56 @@ class VisionctlTest(unittest.TestCase):
             self.assertIn("hooks = true", config)
             if tomllib:
                 tomllib.loads(config)
+
+    def test_cursor_install_is_idempotent_and_preserves_existing_hooks(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            cursor_dir = home / ".cursor"
+            cursor_dir.mkdir()
+            (cursor_dir / "hooks.json").write_text(
+                json.dumps({
+                    "version": 1,
+                    "hooks": {
+                        "sessionStart": [
+                            {
+                                "command": "existing-session-hook",
+                            },
+                        ],
+                        "beforeSubmitPrompt": [
+                            {
+                                "command": "existing-prompt-hook",
+                            },
+                        ],
+                    },
+                }),
+                encoding="utf-8",
+            )
+
+            with Env(HOME=str(home)):
+                visionctl.PROVIDERS["cursor"].install()
+                visionctl.PROVIDERS["cursor"].install()
+
+            hooks = json.loads((cursor_dir / "hooks.json").read_text(encoding="utf-8"))
+            self.assertEqual(hooks["version"], 1)
+            entries = hooks["hooks"]["sessionStart"]
+            self.assertEqual(len(entries), 2)
+            self.assertIn(" hook cursor", entries[0]["command"])
+            self.assertEqual(entries[1]["command"], "existing-session-hook")
+            self.assertEqual(hooks["hooks"]["beforeSubmitPrompt"][0]["command"], "existing-prompt-hook")
+
+    def test_cursor_wrap_returns_session_start_payload(self):
+        self.assertEqual(visionctl.PROVIDERS["cursor"].wrap("ctx"), {"additional_context": "ctx"})
+
+    def test_cursor_hook_accepts_promptless_session_start_payload(self):
+        with patch("visionctl.cli.attach_context", return_value="ctx") as attach_context:
+            stdin = io.StringIO(json.dumps({"cwd": "/tmp/workspace"}))
+            stdout = io.StringIO()
+            with patch("sys.stdin", stdin), patch("sys.stdout", stdout):
+                code = visionctl.cli.cmd_hook(["cursor"])
+
+        self.assertEqual(code, 0)
+        attach_context.assert_called_once_with("/tmp/workspace", 700)
+        self.assertEqual(json.loads(stdout.getvalue()), {"additional_context": "ctx"})
 
     def test_opencode_install_writes_managed_plugin(self):
         with tempfile.TemporaryDirectory() as tmp:

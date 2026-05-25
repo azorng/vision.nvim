@@ -6,15 +6,20 @@ from .providers import PROVIDERS
 from .session import attach_context
 
 
-def parse_hook_payload():
+def parse_hook_payload(allow_promptless=False):
     try:
         payload = json.load(sys.stdin)
     except Exception:
         return None
     if not isinstance(payload, dict):
         return None
-    if not isinstance(payload.get("prompt"), str):
+    if allow_promptless:
+        if "prompt" in payload and not isinstance(payload.get("prompt"), str):
+            return None
+    elif not isinstance(payload.get("prompt"), str):
         return None
+    payload = dict(payload)
+    payload.setdefault("prompt", "")
     return payload
 
 
@@ -24,7 +29,7 @@ def cmd_hook(argv):
 
     provider = PROVIDERS[argv[0]]
     try:
-        payload = parse_hook_payload()
+        payload = parse_hook_payload(provider.accept_promptless_payload())
         if payload is None:
             return 0
         context = attach_context(provider.resolve_cwd(payload), DEFAULT_TIMEOUT_MS)

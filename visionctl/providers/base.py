@@ -11,6 +11,9 @@ class Provider:
     def resolve_cwd(self, payload):
         return os.getcwd()
 
+    def accept_promptless_payload(self):
+        return False
+
     def install(self):
         raise VisionError("unknown provider: " + self.name)
 

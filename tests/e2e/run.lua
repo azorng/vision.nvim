@@ -22,6 +22,9 @@ end
 if provider == "all" or provider == "claude" then
   suites[#suites + 1] = require("tests.e2e.claude")
 end
+if provider == "all" or provider == "cursor" then
+  suites[#suites + 1] = require("tests.e2e.cursor")
+end
 if provider == "all" or provider == "opencode" then
   suites[#suites + 1] = require("tests.e2e.opencode")
 end
